@@ -15,6 +15,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="demo.gif" alt="Telegram bridge receiving command and streaming Claude Code response" width="700">
+</p>
+
 ---
 
 ## Install
