@@ -23,11 +23,13 @@
 
 ## Install
 
+One command. Takes 60 seconds.
+
 ```bash
-git clone https://github.com/nardovibecoding/claude-telegram-bridge.git
-cd claude-telegram-bridge
-pip install -r requirements.txt
+curl -fsSL https://raw.githubusercontent.com/nardovibecoding/claude-telegram-bridge/main/install.sh | bash
 ```
+
+Clones the repo, installs dependencies, prompts for bot token + settings, writes `.env`. Just run `python3 bot.py` after.
 
 **Prerequisites:**
 - Python 3.10+
