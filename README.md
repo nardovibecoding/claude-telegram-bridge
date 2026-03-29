@@ -21,6 +21,8 @@
 
 ---
 
+You're away from your Mac. An idea hits, or someone needs something urgently. You want Claude to just handle it — search the web, read a file, write code — without opening a terminal.
+
 ## Install
 
 One command. Takes 60 seconds.
