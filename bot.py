@@ -178,6 +178,16 @@ async def _handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         start = time.monotonic()
         tool_steps = []
         last_text = ""
+        typing_alive = True
+
+        async def _typing_loop():
+            """Send 'typing...' chat action every 4s while working."""
+            while typing_alive:
+                try:
+                    await ctx.bot.send_chat_action(chat_id, "typing")
+                except Exception:
+                    pass
+                await asyncio.sleep(4)
 
         async def on_text(text: str):
             nonlocal last_text
@@ -192,6 +202,7 @@ async def _handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             progress = "\n".join(f"  {s}" for s in tool_steps[-5:])
             await _safe_edit_text(status_msg, f"Working...\n{progress}")
 
+        typing_task = asyncio.create_task(_typing_loop())
         try:
             result = await sdk_query(
                 prompt=prompt,
@@ -220,6 +231,9 @@ async def _handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             log.error("SDK error: %s", e)
             await status_msg.edit_text(f"Error: {e}")
+        finally:
+            typing_alive = False
+            typing_task.cancel()
 
     task = asyncio.create_task(_run())
     _bg_tasks[chat_id] = task
@@ -288,6 +302,15 @@ async def _handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         start = time.monotonic()
         tool_steps = []
         last_text = ""
+        typing_alive = True
+
+        async def _typing_loop():
+            while typing_alive:
+                try:
+                    await ctx.bot.send_chat_action(chat_id, "typing")
+                except Exception:
+                    pass
+                await asyncio.sleep(4)
 
         async def on_text(text: str):
             nonlocal last_text
@@ -301,6 +324,7 @@ async def _handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             progress = "\n".join(f"  {s}" for s in tool_steps[-5:])
             await _safe_edit_text(status_msg, f"Working...\n{progress}")
 
+        typing_task = asyncio.create_task(_typing_loop())
         try:
             result = await sdk_query(
                 prompt=prompt,
@@ -327,6 +351,8 @@ async def _handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             log.error("SDK error: %s", e)
             await status_msg.edit_text(f"Error: {e}")
         finally:
+            typing_alive = False
+            typing_task.cancel()
             # Cleanup temp file
             try:
                 os.remove(tmp_path)
@@ -378,6 +404,15 @@ async def _handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         start = time.monotonic()
         tool_steps = []
         last_text = ""
+        typing_alive = True
+
+        async def _typing_loop():
+            while typing_alive:
+                try:
+                    await ctx.bot.send_chat_action(chat_id, "typing")
+                except Exception:
+                    pass
+                await asyncio.sleep(4)
 
         async def on_text(text: str):
             nonlocal last_text
@@ -391,6 +426,7 @@ async def _handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             progress = "\n".join(f"  {s}" for s in tool_steps[-5:])
             await _safe_edit_text(status_msg, f"Working...\n{progress}")
 
+        typing_task = asyncio.create_task(_typing_loop())
         try:
             result = await sdk_query(
                 prompt=prompt,
@@ -417,6 +453,8 @@ async def _handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             log.error("SDK error: %s", e)
             await status_msg.edit_text(f"Error: {e}")
         finally:
+            typing_alive = False
+            typing_task.cancel()
             # Cleanup temp file
             try:
                 os.remove(tmp_path)
