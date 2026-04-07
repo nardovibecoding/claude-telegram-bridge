@@ -30,12 +30,20 @@ MODEL_MAP = {
 # Per-cwd clients: each unique working directory gets its own client
 _clients: dict[str, ClaudeSDKClient] = {}  # cwd -> client
 _client_lock = asyncio.Lock()
+_creation_locks: dict[str, asyncio.Lock] = {}  # cwd -> creation lock
+
+
+def _get_creation_lock(cwd: str) -> asyncio.Lock:
+    if cwd not in _creation_locks:
+        _creation_locks[cwd] = asyncio.Lock()
+    return _creation_locks[cwd]
 
 
 async def _get_or_create_client(
     system_prompt: str, model: str, cwd: str
 ) -> ClaudeSDKClient:
     """Get existing client for cwd or create new one."""
+    # Fast path — no lock needed if client exists and is alive
     client = _clients.get(cwd)
 
     if client is not None:
@@ -50,27 +58,43 @@ async def _get_or_create_client(
             pass
         _clients.pop(cwd, None)
 
-    model_id = MODEL_MAP.get(model, model)
-    global_cli = shutil.which("claude")
+    # Serialize creation per cwd to prevent duplicate clients
+    async with _get_creation_lock(cwd):
+        # Double-check after acquiring lock — another coroutine may have created it
+        if cwd in _clients:
+            client = _clients[cwd]
+            try:
+                if client._transport and client._transport.is_ready():
+                    return client
+            except Exception:
+                pass
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+            _clients.pop(cwd, None)
 
-    options = ClaudeAgentOptions(
-        model=model_id,
-        permission_mode="bypassPermissions",
-        system_prompt=system_prompt or None,
-        cwd=cwd,
-        cli_path=global_cli,
-        setting_sources=["user", "project"],
-        allowed_tools=[
-            "Skill", "Read", "Write", "Edit", "Bash",
-            "Glob", "Grep", "WebFetch", "WebSearch", "Agent",
-        ],
-    )
+        model_id = MODEL_MAP.get(model, model)
+        global_cli = shutil.which("claude")
 
-    client = ClaudeSDKClient(options)
-    await asyncio.wait_for(client.connect(), timeout=30)
-    _clients[cwd] = client
-    log.info("SDK client connected: model=%s cwd=%s", model_id, cwd)
-    return client
+        options = ClaudeAgentOptions(
+            model=model_id,
+            permission_mode="bypassPermissions",
+            system_prompt=system_prompt or None,
+            cwd=cwd,
+            cli_path=global_cli,
+            setting_sources=["user", "project"],
+            allowed_tools=[
+                "Skill", "Read", "Write", "Edit", "Bash",
+                "Glob", "Grep", "WebFetch", "WebSearch", "Agent",
+            ],
+        )
+
+        client = ClaudeSDKClient(options)
+        await asyncio.wait_for(client.connect(), timeout=30)
+        _clients[cwd] = client
+        log.info("SDK client connected: model=%s cwd=%s", model_id, cwd)
+        return client
 
 
 async def sdk_query(
@@ -126,7 +150,7 @@ async def sdk_query(
         except Exception as e:
             log.error("SDK query failed (cwd=%s): %s — will reconnect", cwd, e)
             try:
-                await client.disconnect()
+                await asyncio.wait_for(client.disconnect(), timeout=5)
             except Exception:
                 pass
             _clients.pop(cwd, None)
